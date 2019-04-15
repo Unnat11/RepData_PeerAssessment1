@@ -1,0 +1,138 @@
+---
+title: "PA1_Template"
+author: "Unnat Palan"
+date: "April 15, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Reading activity.csv file
+```{r reading the data}
+activity <- read.csv("activity.csv", sep = ",")
+```
+Removing rows with NA
+```{r removing NA}
+names(activity)
+str(activity)
+head(activity[which(!is.na(activity$steps)), ])
+```
+Plotting the Histogram of the total number of steps taken each day
+```{r histogram for daily steps}
+library(reshape2)
+activity_m <- melt(activity[which(!is.na(activity$steps)), ], id.vars = c("date", "interval"))
+steps_sum <- dcast(activity_m, date ~ variable, sum)
+hist(steps_sum$steps, main = "Histogram of total steps taken per day", 
+     xlab = "Total steps per day", ylab = "Number of days", 
+     breaks = 10, col = "green")
+abline(v = mean(steps_sum$steps), lty = 1, lwd = 2, col = "red")
+abline(v = median(steps_sum$steps), lty = 2, lwd = 2, col = "black")
+legend(x = "topright", c("Mean", "Median"), col = c("red", "black"), 
+       lty = c(1, 2), lwd = c(2, 2))
+```
+
+Calculating the mean of the total number of steps taken per day
+```{r steps mean}
+library(reshape2)
+activity_m <- melt(activity[which(!is.na(activity$steps)), ], id.vars = c("date", "interval"))
+head(activity_m)
+steps_sum <- dcast(activity_m, date ~ variable, sum)
+head(steps_sum)
+```
+
+Time series plot of the average number of steps taken
+```{r average steps taken}
+stepsdailyaverage <- dcast(activity_m, interval ~ variable, 
+                           mean, na.rm = TRUE)
+head(stepsdailyaverage)
+plot(stepsdailyaverage$interval, stepsdailyaverage$steps, ty = "l",
+     xlab = "time interval", ylab = "Average steps", 
+     main = "Average steps taken over all days vs \n time interval")
+```
+
+5-minute interval that, on average, contains the maximum number of steps
+```{r max steps}
+maxsteps_interval <- 
+  stepsdailyaverage$interval[which.max(stepsdailyaverage$steps)]
+maxsteps_interval
+```
+
+Imputing missing data
+```{r imputing missing data}
+activity2 <- split(activity, activity$interval)
+
+activity2 <- lapply(activity2, function(x) {
+  x$steps[which(is.na(x$steps))] <- mean(x$steps, na.rm = TRUE)
+  return(x)
+})
+
+activity2 <- do.call("rbind", activity2)
+row.names(activity2) <- NULL
+
+activity2 <- split(activity2, activity2$date)
+
+df <- lapply(activity2, function(x) {
+  x$steps[which(is.na(x$steps))] <- mean(x$steps, na.rm = TRUE)
+  return(x)
+})
+
+activity2 <- do.call("rbind", activity2)
+row.names(activity2) <- NULL
+head(activity2)
+
+library(reshape2)
+activity_m2 <- melt(activity2, id.vars = c("date", "interval"))
+steps_sum <- dcast(activity_m2, date ~ variable, sum, na.rm = TRUE)
+head(steps_sum)
+```
+
+Plotting the Histogram of the total number of steps taken each day after missing values are imputed
+```{r histogram with imputed data}
+hist(steps_sum$steps, main = "Histogram of total steps taken per day", 
+     xlab = "Total steps per day", ylab = "Number of days", 
+     breaks = 10, col = "grey")
+abline(v = mean(steps_sum$steps), lty = 1, lwd = 2, col = "red")
+abline(v = median(steps_sum$steps), lty = 2, lwd = 2, col = "black")
+legend(x = "topright", c("Mean", "Median"), col = c("red", "black"), 
+       lty = c(2, 1), lwd = c(2, 2))
+```
+
+Comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+```{r average steps across weekdays and weekends} 
+weekends <- which(weekdays(as.Date(activity2$date)) == "Saturday" |
+                    weekdays(as.Date(activity2$date)) == "Sunday")
+weekdays <- which(weekdays(as.Date(activity2$date)) != "Saturday" &
+                    weekdays(as.Date(activity2$date)) != "Sunday")
+temp <- c(rep("a", length(activity2)))
+temp[weekends] <- "weekend"
+temp[weekdays] <- "weekday"
+length(temp)
+activity2 <- cbind(activity2, temp)
+head(activity2)
+names(activity2)[4] <- "day"
+
+activity2split <- split(activity2, activity2$day)
+
+stepsmean_interval <- lapply(activity2split, function(x) {
+  temp <- aggregate(x$steps, list(x$interval), mean)
+  names(temp) <- c("interval", "steps")
+  return(temp)
+})
+
+stepsmean_interval <- do.call("rbind", stepsmean_interval)
+weekdays <- grep("weekday" ,row.names(stepsmean_interval))
+weekends <- grep("weekend" ,row.names(stepsmean_interval))
+temp <- c(rep("a", length(stepsmean_interval$steps)))
+temp[weekdays] <- "weekdays"
+temp[weekends] <- "weekends"
+names(temp) <- "day"
+stepsmean_interval <- cbind(stepsmean_interval, temp)
+row.names(stepsmean_interval) <- NULL
+
+head(stepsmean_interval)
+
+library(ggplot2)
+ggplot(stepsmean_interval, aes(interval, steps)) + geom_line() + facet_grid(temp ~ .) 
+```
